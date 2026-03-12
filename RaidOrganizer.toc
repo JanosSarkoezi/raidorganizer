@@ -1,0 +1,8 @@
+## Interface: 30300
+## Title: RaidOrganizer
+## Notes: Automatisches LFM und Invite fuer Ascension.
+## Author: SAJ
+## Version: 1.0
+## SavedVariables: RO_Settings
+
+RaidOrganizer.lua
