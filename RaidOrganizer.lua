@@ -2,7 +2,7 @@
 -- HAUPTFENSTER SETUP
 -- ============================================================
 local RO_Frame = CreateFrame("Frame", "RaidOrganizerMain", UIParent, "BackdropTemplate")
-RO_Frame:SetSize(280, 320)
+RO_Frame:SetSize(280, 300) -- Kompakt auf 300px gekürzt
 RO_Frame:SetPoint("CENTER")
 RO_Frame:SetFrameStrata("HIGH")
 
@@ -12,8 +12,8 @@ RO_Frame:SetBackdrop({
     tile = true, tileSize = 32, edgeSize = 32,
     insets = { left = 8, right = 8, top = 8, bottom = 8 }
 })
-RO_Frame:SetBackdropColor(0, 0, 0, 0.7)
-RO_Frame:SetFrameLevel(1) -- Hauptfenster auf Basis-Level
+RO_Frame:SetBackdropColor(0, 0, 0, 0.85)
+RO_Frame:SetFrameLevel(1)
 
 -- FENSTER BEWEGLICH MACHEN
 RO_Frame:SetMovable(true)
@@ -36,188 +36,201 @@ local adType = "LFM MS Leveling"
 local recentWhispers = {}
 
 -- ============================================================
--- HELPER FUNKTIONEN (UI)
+-- UI HELPER FUNKTIONEN
 -- ============================================================
 
--- Erstellt Eingabefelder für Rollen
+-- Kleine Trennlinie für visuelle Struktur
+local function CreateSeparator(y)
+    local line = RO_Frame:CreateTexture(nil, "ARTWORK")
+    line:SetSize(220, 1)
+    line:SetPoint("TOP", 0, y)
+    line:SetColorTexture(1, 1, 1, 0.15)
+end
+
+-- Erstellt saubere Eingabefelder
 local function CreateRoleInput(label, y)
-    -- 1. Label erstellen
     local txt = RO_Frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    -- Wir setzen den Punkt auf die Y-Achse, aber zentrieren ihn vertikal zur Box
     txt:SetPoint("LEFT", RO_Frame, "TOPLEFT", 35, y)
     txt:SetText(label)
 
-    -- 2. EditBox erstellen (ohne Template, um volle Kontrolle zu haben)
-    local eb = CreateFrame("EditBox", nil, RO_Frame)
-    eb:SetSize(45, 20) -- Jetzt genau so klein, wie du es wolltest
+    local eb = CreateFrame("EditBox", nil, RO_Frame, "BackdropTemplate")
+    eb:SetSize(45, 20)
     eb:SetPoint("RIGHT", RO_Frame, "TOPRIGHT", -35, y)
-    
-    -- Design: Hintergrund und Rahmen
     eb:SetBackdrop({
-        bgFile = "Interface\\ChatFrame\\ChatFrameBackground", -- Schlichter Hintergrund
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",    -- Dünner Rahmen
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         tile = true, tileSize = 16, edgeSize = 12,
         insets = { left = 3, right = 3, top = 3, bottom = 3 }
     })
-    eb:SetBackdropColor(0, 0, 0, 0.8) -- Schwarz mit 80% Deckkraft
-    eb:SetBackdropBorderColor(0.5, 0.5, 0.5, 1) -- Grauer Rahmen
+    eb:SetBackdropColor(0, 0, 0, 0.8)
+    eb:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
 
-    -- Text-Einstellungen innerhalb der Box
-    eb:SetFontObject("ChatFontNormal") -- Standardfont nutzen
-    eb:SetJustifyH("CENTER")          -- Zahl mittig anzeigen
-    eb:SetTextInsets(0, 0, 0, 0)      -- Kein Versatz nötig bei Zentrierung
+    eb:SetFontObject("ChatFontNormal")
+    eb:SetJustifyH("CENTER")
+    eb:SetTextInsets(0, 0, 1, 0)
     
-    -- Verhalten
     eb:SetAutoFocus(false)
     eb:SetNumeric(true)
     eb:SetMaxLetters(2)
 
-    -- Hilfreiche Scripts für die Bedienung
     eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    eb:SetScript("OnEditFocusGained", function(self) self:SetBackdropBorderColor(1, 0.8, 0, 1) end) -- Goldener Rand bei Fokus
+    eb:SetScript("OnEditFocusGained", function(self) self:SetBackdropBorderColor(1, 0.8, 0, 1) end)
     eb:SetScript("OnEditFocusLost", function(self) self:SetBackdropBorderColor(0.5, 0.5, 0.5, 1) end)
 
     return eb
 end
 
-local tankInput = CreateRoleInput("Tanks needed:", -60)
-local healInput = CreateRoleInput("Heals needed:", -90)
-local dpsInput  = CreateRoleInput("DPS needed:", -120)
-
--- ============================================================
--- OPTIMIERTE RADIO-BUTTON FUNKTION
--- ============================================================
-
--- Kleine Trennlinie für die Optik
-local function CreateSeparator(y)
-    local line = RO_Frame:CreateTexture(nil, "ARTWORK")
-    line:SetSize(220, 1)
-    line:SetPoint("TOP", 0, y)
-    line:SetColorTexture(1, 1, 1, 0.15) -- Dezentes Weiß
-end
-
+-- Erstellt Radio-Buttons
 local function CreateRadio(label, x, y, group, onClick)
     local name = "RO_Radio_" .. label:gsub("%W", "")
     local cb = CreateFrame("CheckButton", name, RO_Frame, "ChatConfigCheckButtonTemplate")
     cb:SetPoint("TOPLEFT", x, y)
-    cb:SetSize(22, 22) -- Etwas kompakter
+    cb:SetSize(22, 22)
     
-    -- Text-Positionierung korrigieren
     local text = _G[name .. "Text"]
     text:SetText(label)
     text:SetFontObject("GameFontHighlightSmall")
     text:ClearAllPoints()
-    text:SetPoint("LEFT", cb, "RIGHT", 4, 1) -- Text direkt neben die Box setzen
+    text:SetPoint("LEFT", cb, "RIGHT", 4, 1)
     
-    -- Klickbereich auf den Text erweitern (wichtig für UX)
     cb:SetHitRectInsets(0, -50, 0, 0) 
-    
     cb:SetScript("OnClick", function(self)
-        for _, btn in ipairs(group) do
-            btn:SetChecked(false)
-        end
+        for _, btn in ipairs(group) do btn:SetChecked(false) end
         self:SetChecked(true)
         onClick()
     end)
-    
     table.insert(group, cb)
     return cb
 end
 
 -- ============================================================
--- POSITIONIERUNG DER GRUPPEN
+-- UI ELEMENTE ERSTELLEN
 -- ============================================================
 
--- 1. Gruppe: Raid Size (3 Spalten)
-CreateSeparator(-155)
+local tankInput = CreateRoleInput("Tanks needed:", -60)
+local healInput = CreateRoleInput("Heals needed:", -90)
+local dpsInput  = CreateRoleInput("DPS needed:", -120)
+
+-- Gruppe: Raid Size
+CreateSeparator(-145)
 local groupRadios = {}
-local r5 = CreateRadio("5-man", 30, -170, groupRadios, function()
-    maxPlayers = 5
-    tankInput:SetText("1"); healInput:SetText("1"); dpsInput:SetText("3")
+local r5 = CreateRadio("5-man", 30, -155, groupRadios, function()
+    maxPlayers = 5; tankInput:SetText("1"); healInput:SetText("1"); dpsInput:SetText("3")
 end)
 r5:SetChecked(true)
-
-CreateRadio("10-man", 105, -170, groupRadios, function()
-    maxPlayers = 10
-    tankInput:SetText("2"); healInput:SetText("2"); dpsInput:SetText("6")
+CreateRadio("10-man", 105, -155, groupRadios, function()
+    maxPlayers = 10; tankInput:SetText("2"); healInput:SetText("2"); dpsInput:SetText("6")
+end)
+CreateRadio("15-man", 185, -155, groupRadios, function()
+    maxPlayers = 15; tankInput:SetText("2"); healInput:SetText("3"); dpsInput:SetText("10")
 end)
 
-CreateRadio("15-man", 185, -170, groupRadios, function()
-    maxPlayers = 15
-    tankInput:SetText("2"); healInput:SetText("3"); dpsInput:SetText("10")
-end)
-
--- 2. Gruppe: Activity Type (2 Spalten)
-CreateSeparator(-205)
+-- Gruppe: Activity
+CreateSeparator(-185)
 local textRadios = {}
-local rLev = CreateRadio("Leveling", 30, -220, textRadios, function()
-    adType = "LFM MS Leveling"
-end)
+local rLev = CreateRadio("Leveling", 30, -195, textRadios, function() adType = "LFM MS Leveling" end)
 rLev:SetChecked(true)
+CreateRadio("Gold Farm", 140, -195, textRadios, function() adType = "LFM MS Gold" end)
 
-CreateRadio("Gold Farm", 140, -220, textRadios, function()
-    adType = "LFM MS Gold"
-end)
-
--- ============================================================
--- KERN-LOGIK: POSTING & TIMER
--- ============================================================
-
+-- Start Button
 local btn = CreateFrame("Button", "RO_MainBtn", RO_Frame, "GameMenuButtonTemplate")
-btn:SetPoint("BOTTOM", 0, 25)
-btn:SetSize(140, 35)
+btn:SetPoint("TOP", RO_Frame, "TOP", 0, -240) 
+btn:SetSize(140, 30)
 btn:SetText("Start Search")
 
+-- ============================================================
+-- LOGIK FUNKTIONEN
+-- ============================================================
+
+local function RO_HandleWhisper(text, sender)
+    if not isRunning then return end
+    if UnitInParty(sender) or UnitInRaid(sender) or sender == UnitName("player") then return end
+
+    local msg = text:lower()
+    local roleFound = nil
+    local inputField = nil
+
+    -- Rollen-Erkennung
+    if msg:find("inv t") or msg:find("tank") then
+        roleFound = "Tank"
+        inputField = tankInput
+    elseif msg:find("inv h") or msg:find("heal") then
+        roleFound = "Healer"
+        inputField = healInput
+    elseif msg:find("inv d") or msg:find("dps") or msg:find("dd") then
+        roleFound = "DPS"
+        inputField = dpsInput
+    end
+
+    if roleFound then
+        local current = tonumber(inputField:GetText()) or 0
+        if current > 0 then 
+            inputField:SetText(current - 1)
+            InviteUnit(sender)
+            recentWhispers[sender] = nil 
+            print("|cff00ff00RO: Invited " .. sender .. " (" .. roleFound .. ")|r")
+        else
+            if not recentWhispers[sender] then
+                SendChatMessage("RO: Sorry, we are already full on " .. roleFound .. "s! Good luck with your search.", "WHISPER", nil, sender)
+                recentWhispers[sender] = true 
+                print("|cffff0000RO: Rejected " .. sender .. " (Full on " .. roleFound .. ")|r")
+            end
+        end
+    elseif (msg:find("inv") or msg:find("invite")) and not recentWhispers[sender] then
+        SendChatMessage("RO: Please whisper 'inv T', 'inv H' or 'inv D' for auto-invite!", "WHISPER", nil, sender)
+        recentWhispers[sender] = true
+    end
+end
+
 local function PostLFM()
-    -- 1. Check ob Gruppe voll
     if GetNumGroupMembers() >= maxPlayers then
         isRunning = false
         btn:SetText("Start Search")
-        print("|cffff0000RaidOrganizer: Group is full! Stopping search.|r")
+        print("|cffff0000RO: Group full! Search stopped.|r")
         return
     end
 
-    -- 2. Werte auslesen
-    local tNeed = tonumber(tankInput:GetText()) or 0
-    local hNeed = tonumber(healInput:GetText()) or 0
-    local dNeed = tonumber(dpsInput:GetText()) or 0
+    local tanksNeeded = tonumber(tankInput:GetText()) or 0
+    local healsNeeded = tonumber(healInput:GetText()) or 0
+    local dpsNeeded = tonumber(dpsInput:GetText()) or 0
 
-    -- 3. Nachricht zusammenbauen
-    if tNeed > 0 or hNeed > 0 or dNeed > 0 then
+    if tanksNeeded > 0 or healsNeeded > 0 or dpsNeeded > 0 then
         local msg = adType .. ": "
-        if tNeed > 0 then msg = msg .. tNeed .. "x Tank " end
-        if hNeed > 0 then msg = msg .. hNeed .. "x Heal " end
-        if dNeed > 0 then msg = msg .. dNeed .. "x DPS " end
-        msg = msg .. "- Whisper 'inv T/H/D' for auto-invite! Examples 'inv T' for Tank, 'inv H' for Healer and 'inv D' for Damage."
+        if tanksNeeded > 0 then msg = msg .. tanksNeeded .. "x Tank " end
+        if healsNeeded > 0 then msg = msg .. healsNeeded .. "x Heal " end
+        if dpsNeeded > 0 then msg = msg .. dpsNeeded .. "x DPS " end
+        msg = msg .. "- Whisper 'inv T/H/D' for auto-invite!"
 
-        -- 4. In Channels senden
         for i = 1, 20 do
             local id, name = GetChannelName(i)
             if name then
                 local lowName = name:lower()
-                if lowName:find("newcomers") or lowName:find("looking") or lowName:find("suche") or lowName:find("general") then
+                if lowName:find("world") or lowName:find("looking") or lowName:find("suche") or lowName:find("general") then
                     SendChatMessage(msg, "CHANNEL", nil, id)
                 end
             end
         end
     else
-        -- Falls alles auf 0 ist
         isRunning = false
         btn:SetText("Start Search")
-        print("|cff00ff00RaidOrganizer: All slots filled.|r")
+        print("|cff00ff00RO: All slots filled.|r")
     end
 end
+
+-- ============================================================
+-- SCRIPTS & EVENTS
+-- ============================================================
 
 btn:SetScript("OnClick", function(self)
     isRunning = not isRunning
     if isRunning then
         self:SetText("Stop Search")
-        print("|cff00ff00RaidOrganizer: Searching...|r")
-        timer = 58 -- Erster Post nach 2 Sek.
+        print("|cff00ff00RO: Searching...|r")
+        timer = 58 
         recentWhispers = {}
     else
         self:SetText("Start Search")
-        print("|cffff0000RaidOrganizer: Paused.|r")
+        print("|cffff0000RO: Paused.|r")
     end
 end)
 
@@ -230,69 +243,20 @@ RO_Frame:SetScript("OnUpdate", function(self, elapsed)
     end
 end)
 
--- ============================================================
--- AUTO-INVITE LOGIK
--- ============================================================
-
-local inviteFrame = CreateFrame("Frame")
-inviteFrame:RegisterEvent("CHAT_MSG_WHISPER")
-inviteFrame:SetScript("OnEvent", function(self, event, text, sender)
-    if not isRunning then return end
-    
-    -- Ignorieren, wenn bereits in Gruppe
-    if UnitInParty(sender) or UnitInRaid(sender) then return end
-
-    local msg = text:lower()
-    local invSuccess = false
-    local roleFound = false
-
-    -- Rollen-Check
-    if msg:find("inv t") or msg:find("tank") then
-        roleFound = true
-        local current = tonumber(tankInput:GetText()) or 0
-        if current > 0 then 
-            tankInput:SetText(current - 1)
-            invSuccess = true
-        end
-    elseif msg:find("inv h") or msg:find("heal") then
-        roleFound = true
-        local current = tonumber(healInput:GetText()) or 0
-        if current > 0 then 
-            healInput:SetText(current - 1)
-            invSuccess = true
-        end
-    elseif msg:find("inv d") or msg:find("dps") or msg:find("dd") then
-        roleFound = true
-        local current = tonumber(dpsInput:GetText()) or 0
-        if current > 0 then 
-            dpsInput:SetText(current - 1)
-            invSuccess = true
-        end
-    end
-
-    -- Ergebnis verarbeiten
-    if invSuccess then
-        InviteUnit(sender)
-        recentWhispers[sender] = nil
-    elseif not roleFound then
-        if not recentWhispers[sender] then
-            SendChatMessage("RO: Please whisper 'inv T', 'inv H' or 'inv D' for auto-invite!", "WHISPER", nil, sender)
-            recentWhispers[sender] = true
-        end
-    end
+local eventFrame = CreateFrame("Frame")
+eventFrame:RegisterEvent("CHAT_MSG_WHISPER")
+eventFrame:SetScript("OnEvent", function(self, event, text, sender)
+    RO_HandleWhisper(text, sender)
 end)
 
--- ============================================================
 -- SLASH COMMAND
--- ============================================================
 SLASH_RAIDORGANIZER1 = "/ro"
 SlashCmdList["RAIDORGANIZER"] = function()
     if RO_Frame:IsShown() then RO_Frame:Hide() else RO_Frame:Show() end
 end
 
--- Startwerte setzen (Initialisierung)
+-- Init Standardwerte
 tankInput:SetText("1")
 healInput:SetText("1")
 dpsInput:SetText("3")
-
 print("|cff69ccf0RaidOrganizer v1.7 loaded. Use /ro to toggle.|r")
