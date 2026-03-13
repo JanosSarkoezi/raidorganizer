@@ -199,7 +199,7 @@ local function PostLFM()
         if tanksNeeded > 0 then msg = msg .. tanksNeeded .. "x Tank " end
         if healsNeeded > 0 then msg = msg .. healsNeeded .. "x Heal " end
         if dpsNeeded > 0 then msg = msg .. dpsNeeded .. "x DPS " end
-        msg = msg .. "- Whisper 'inv T/H/D' for auto-invite!"
+        msg = msg .. "- Whisper 'inv T/H/D' for auto-invite!. Examples 'inv T' for Tank, 'inv H' for Heal and 'inv D' for Damage."
 
         for i = 1, 20 do
             local id, name = GetChannelName(i)
