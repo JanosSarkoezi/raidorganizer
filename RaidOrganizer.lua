@@ -21,6 +21,14 @@ function RaidOrganizer:New()
     obj:CreateMainFrame()
     obj:BuildUI()
     obj:SetupEvents()
+
+    -- Konfiguration: Hier kannst du Kanäle einfach hinzufügen/löschen
+    obj.targetChannels = {
+	"rotest", 
+	-- "german", 
+        -- "newcomers",
+        -- "ascension",
+    }
     
     print("|cff69ccf0RaidOrganizer v1.8 (Class-based) geladen. Nutze /ro zum Anzeigen.|r")
     return obj
@@ -140,6 +148,10 @@ function RaidOrganizer:BuildUI()
     self.tankInput = self:CreateRoleInput("Tanks needed:", -60)
     self.healInput = self:CreateRoleInput("Heals needed:", -90)
     self.dpsInput  = self:CreateRoleInput("DPS needed:", -120)
+    
+    self.tankInput:SetText("1")
+    self.healInput:SetText("1")
+    self.dpsInput:SetText("3")
 
     -- 2. Raid Größe (Radio Buttons)
     CreateSeparator(-145)
@@ -149,7 +161,7 @@ function RaidOrganizer:BuildUI()
     r5:SetChecked(true)
     
     self:CreateRadio("10-man", 105, -155, self.groupRadios, function()
-        self.maxPlayers = 10; self.tankInput:SetText("2"); self.healInput:SetText("2"); self.dpsInput:SetText("6")
+        self.maxPlayers = 10; self.tankInput:SetText("1"); self.healInput:SetText("2"); self.dpsInput:SetText("7")
     end)
     
     self:CreateRadio("15-man", 185, -155, self.groupRadios, function()
@@ -178,19 +190,6 @@ end
 -- LOGIK METHODEN (Das "Gehirn" des Addons)
 -- ============================================================
 
-function RaidOrganizer:ToggleSearch()
-    self.isRunning = not self.isRunning
-    if self.isRunning then
-        self.btn:SetText("|cff00ff00Stop Search|r")
-        self.timer = 58 
-        self.recentWhispers = {}
-        print("|cff00ff00RO: Suche gestartet...|r")
-    else
-        self.btn:SetText("Start Search")
-        print("|cffff0000RO: Suche pausiert.|r")
-    end
-end
-
 function RaidOrganizer:OnUpdate(elapsed)
     if not self.isRunning then return end
     self.timer = self.timer + elapsed
@@ -200,31 +199,126 @@ function RaidOrganizer:OnUpdate(elapsed)
     end
 end
 
+function RaidOrganizer:RefreshChannels()
+    self.activeChannels = {}
+    local foundAny = false
+
+    -- Wir scannen alle 10 Standard-Slots
+    for i = 1, 10 do
+        local id, name = GetChannelName(i)
+        if name then
+            local lowName = name:lower()
+            
+            for _, pattern in ipairs(self.targetChannels) do
+                if lowName:find(pattern:lower()) then
+                    table.insert(self.activeChannels, id)
+                    foundAny = true
+                    print("|cff69ccf0RO: Channel gefunden:|r [" .. id .. "] " .. name)
+                    break 
+                end
+            end
+        end
+    end
+
+    if not foundAny then
+        print("|cffff0000RO Warnung: Kein Ziel-Channel gefunden! (Prüfe /join " .. (self.targetChannels[1] or "") .. ")|r")
+    end
+end
+
 function RaidOrganizer:PostLFM()
+    -- Gruppe voll Check
     if GetNumGroupMembers() >= self.maxPlayers then
-        self:ToggleSearch() -- Stop
+        self:ToggleSearch()
+        print("|cffff0000RO: Raid full!|r")
+        return
+    end
+
+    local t = tonumber(self.tankInput:GetText()) or 0
+    local h = tonumber(self.healInput:GetText()) or 0
+    local d = tonumber(self.dpsInput:GetText()) or 0
+
+    if t > 0 or h > 0 or d > 0 then
+        -- Einfachere Nachricht ohne zu viele Farbcodes (verhindert Spam-Block)
+        local msg = self.adType .. " needs: "
+
+        if t > 0 then msg = msg .. t .. " Tank " end
+        if h > 0 then msg = msg .. h .. " Heal " end
+        if d > 0 then msg = msg .. d .. " DPS " end
+        msg = msg .. "- Whisper 'inv T' for Tank, 'inv H' for Healer or 'inv D' for Damage!"
+
+        -- Senden an alle gefundenen IDs
+        if self.activeChannels and #self.activeChannels > 0 then
+            for _, id in ipairs(self.activeChannels) do
+                -- WICHTIG: Sicherstellen, dass id eine Zahl ist
+                local channelIndex = tonumber(id)
+                if channelIndex then
+                    SendChatMessage(msg, "CHANNEL", nil, channelIndex)
+                end
+            end
+        else
+            print("|cffff0000RO: Senden fehlgeschlagen - Kein Channel-Index vorhanden.|r")
+        end
+    else
+        self:ToggleSearch()
+    end
+end
+
+function RaidOrganizer:PostLFMColored()
+    if GetNumGroupMembers() >= self.maxPlayers then
+        self:ToggleSearch()
         print("|cffff0000RO: Gruppe voll!|r")
         return
     end
 
-    local t, h, d = tonumber(self.tankInput:GetText()) or 0, tonumber(self.healInput:GetText()) or 0, tonumber(self.dpsInput:GetText()) or 0
+    local t = tonumber(self.tankInput:GetText()) or 0
+    local h = tonumber(self.healInput:GetText()) or 0
+    local d = tonumber(self.dpsInput:GetText()) or 0
 
     if t > 0 or h > 0 or d > 0 then
-        local msg = self.adType .. ": "
-        if t > 0 then msg = msg .. t .. "x Tank " end
-        if h > 0 then msg = msg .. h .. "x Heal " end
-        if d > 0 then msg = msg .. d .. "x DPS " end
-        msg = msg .. "- Whisper 'inv T', 'inv H' oder 'inv D'!"
+        -- 1. Aktivität einfärben
+        local coloredActivity = ""
+        if self.adType:find("Leveling") then
+            coloredActivity = "LFM |cffff4d4dMS|r |cff1eff00Leveling|r"
+        elseif self.adType:find("Gold") then
+            coloredActivity = "LFM |cffff4d4dMS|r |cffffd700Gold Farm|r"
+        else
+            coloredActivity = self.adType -- Fallback
+        end
 
-        for i = 1, 20 do
-            local id, name = GetChannelName(i)
-            if name and (name:lower():find("newcomers") or name:lower():find("ascension") or name:lower():find("world") or name:lower():find("suche")) then
+        local msg = coloredActivity .. ": "
+
+        -- 2. Zahlen in Weiß einfärben
+        if t > 0 then msg = msg .. "|cffffffff" .. t .. "x|r Tank " end
+        if h > 0 then msg = msg .. "|cffffffff" .. h .. "x|r Heal " end
+        if d > 0 then msg = msg .. "|cffffffff" .. d .. "x|r DPS " end
+        
+        msg = msg .. "- Whisper 'inv T' for Tank, 'inv H' for Healer or 'inv D' for Damage!"
+
+        -- 3. Senden
+        if self.activeChannels then
+            for _, id in ipairs(self.activeChannels) do
                 SendChatMessage(msg, "CHANNEL", nil, id)
             end
         end
     else
         self:ToggleSearch()
-        print("|cff00ff00RO: Alle Slots gefüllt.|r")
+    end
+end
+
+function RaidOrganizer:ToggleSearch()
+    self.isRunning = not self.isRunning
+
+    if self.isRunning then
+        self:RefreshChannels() 
+        self.btn:SetText("|cff00ff00Stop Search|r")
+        -- Reset Timer & Cache
+        self.timer = 58 
+        self.recentWhispers = {}
+        
+        print("|cff00ff00RO: Suche gestartet...|r")
+    else
+        self.btn:SetText("Start Search")
+        print("|cff00ff00RO: Suche pausiert.|r")
     end
 end
 
@@ -247,12 +341,12 @@ function RaidOrganizer:HandleWhisper(text, sender)
             self.recentWhispers[sender] = nil 
         else
             if not self.recentWhispers[sender] then
-                SendChatMessage("RO: Sorry, " .. roleFound .. " ist bereits voll!", "WHISPER", nil, sender)
+		SendChatMessage("RO: Sorry, " .. roleFound .. " slots are full!", "WHISPER", nil, sender)
                 self.recentWhispers[sender] = true 
             end
         end
     elseif (msg:find("inv") or msg:find("invite")) and not self.recentWhispers[sender] then
-        SendChatMessage("RO: Bitte 'inv T', 'inv H' oder 'inv D' flüstern!", "WHISPER", nil, sender)
+	SendChatMessage("RO: Min Level 10. Please whisper 'inv T', 'inv H' or 'inv D'!", "WHISPER", nil, sender)
         self.recentWhispers[sender] = true
     end
 end
