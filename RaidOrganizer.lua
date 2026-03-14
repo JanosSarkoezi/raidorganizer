@@ -7,12 +7,11 @@ RO_Frame:SetPoint("CENTER")
 RO_Frame:SetFrameStrata("HIGH")
 
 RO_Frame:SetBackdrop({
-    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-    tile = true, tileSize = 32, edgeSize = 32,
-    insets = { left = 8, right = 8, top = 8, bottom = 8 }
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        edgeSize = 16, insets = {left=5, right=5, top=5, bottom=5}
 })
-RO_Frame:SetBackdropColor(0, 0, 0, 0.85)
+-- RO_Frame:SetBackdropColor(0, 0, 0, 0.5)
 RO_Frame:SetFrameLevel(1)
 
 -- FENSTER BEWEGLICH MACHEN
@@ -54,8 +53,10 @@ local function CreateRoleInput(label, y)
     txt:SetText(label)
 
     local eb = CreateFrame("EditBox", nil, RO_Frame, "BackdropTemplate")
-    eb:SetSize(45, 20)
-    eb:SetPoint("RIGHT", RO_Frame, "TOPRIGHT", -35, y)
+    eb:SetSize(35, 20) -- Etwas schmaler für bessere Optik
+    -- POSITION: 165px von links rückt das Ganze schön in die Mitte
+    eb:SetPoint("LEFT", RO_Frame, "TOPLEFT", 165, y) 
+    
     eb:SetBackdrop({
         bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -64,18 +65,30 @@ local function CreateRoleInput(label, y)
     })
     eb:SetBackdropColor(0, 0, 0, 0.8)
     eb:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
-
     eb:SetFontObject("ChatFontNormal")
     eb:SetJustifyH("CENTER")
-    eb:SetTextInsets(0, 0, 1, 0)
-    
     eb:SetAutoFocus(false)
     eb:SetNumeric(true)
-    eb:SetMaxLetters(2)
 
-    eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    eb:SetScript("OnEditFocusGained", function(self) self:SetBackdropBorderColor(1, 0.8, 0, 1) end)
-    eb:SetScript("OnEditFocusLost", function(self) self:SetBackdropBorderColor(0.5, 0.5, 0.5, 1) end)
+    -- Minus Button links neben die EditBox
+    local btnMinus = CreateFrame("Button", nil, RO_Frame, "UIPanelButtonTemplate")
+    btnMinus:SetSize(22, 22) -- Etwas größer für bessere Klickbarkeit
+    btnMinus:SetPoint("RIGHT", eb, "LEFT", -5, 0)
+    btnMinus:SetText("-")
+    btnMinus:SetScript("OnClick", function()
+        local val = tonumber(eb:GetText()) or 0
+        if val > 0 then eb:SetText(val - 1) end
+    end)
+
+    -- Plus Button rechts neben die EditBox
+    local btnPlus = CreateFrame("Button", nil, RO_Frame, "UIPanelButtonTemplate")
+    btnPlus:SetSize(22, 22)
+    btnPlus:SetPoint("LEFT", eb, "RIGHT", 5, 0)
+    btnPlus:SetText("+")
+    btnPlus:SetScript("OnClick", function()
+        local val = tonumber(eb:GetText()) or 0
+        eb:SetText(val + 1)
+    end)
 
     return eb
 end
@@ -199,13 +212,13 @@ local function PostLFM()
         if tanksNeeded > 0 then msg = msg .. tanksNeeded .. "x Tank " end
         if healsNeeded > 0 then msg = msg .. healsNeeded .. "x Heal " end
         if dpsNeeded > 0 then msg = msg .. dpsNeeded .. "x DPS " end
-        msg = msg .. "- Whisper 'inv T/H/D' for auto-invite!. Examples 'inv T' for Tank, 'inv H' for Heal and 'inv D' for Damage."
+        msg = msg .. "- Whisper 'inv T' for Tank, 'inv H' for Heal and 'inv D' for Damage."
 
         for i = 1, 20 do
             local id, name = GetChannelName(i)
             if name then
                 local lowName = name:lower()
-                if lowName:find("world") or lowName:find("looking") or lowName:find("suche") or lowName:find("general") then
+                if lowName:find("newcomers") or lowName:find("ascension") or lowName:find("suche") or lowName:find("general") then
                     SendChatMessage(msg, "CHANNEL", nil, id)
                 end
             end
