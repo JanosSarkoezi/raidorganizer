@@ -18,7 +18,7 @@ function RaidOrganizer:New()
     obj.isRunning = false
     obj.maxPlayers = 5
     obj.adType = "LFM MS Leveling"
-    -- obj.targetChannels = { "rotest" }
+    -- obj.targetChannels = { "test" }
     obj.targetChannels = { "newcomers", "ascension", "world", "lfg" }
     
     -- Cache & Logic
@@ -151,7 +151,11 @@ end
 
 -- NEW: Level Check Logic
 function RaidOrganizer:CheckGroupLevel()
-    if not self.isRunning then return end
+    print("DEBUG: CheckGroupLevel wurde aufgerufen!")
+    if not self.isRunning then 
+	print("DEBUG: Abgebrochen, da isRunning = false")
+	return 
+    end
 
     local isGoldFarm = self.adType:find("Gold")
     local numMembers = GetNumGroupMembers()
@@ -164,6 +168,7 @@ function RaidOrganizer:CheckGroupLevel()
         
         local name = UnitName(unit)
         local level = UnitLevel(unit)
+        print("DEBUG: "..name.."with level "..level)
 
         if name and name ~= UnitName("player") and level > 0 then
             local isInvalid = false
@@ -193,6 +198,7 @@ function RaidOrganizer:CheckGroupLevel()
                 SendChatMessage("RO: " .. reasonMsg, "WHISPER", nil, name)
                 self.recentWhispers[name .. "_lvlwarn"] = true
             end
+	    print("DEBUG: "..reasonMsg)
         end
     end
 end
@@ -253,6 +259,7 @@ function RaidOrganizer:SetupEvents()
     self.eventFrame:RegisterEvent("CHAT_MSG_WHISPER")
     self.eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
     
+    -- Timer für Posts (alle 60 Sek)
     self.eventFrame:SetScript("OnUpdate", function(_, elapsed)
         if self.isRunning then
             self.internalTimer = self.internalTimer + elapsed
@@ -263,11 +270,17 @@ function RaidOrganizer:SetupEvents()
         end
     end)
 
-    self.eventFrame:SetScript("OnEvent", function(_, event, text, sender)
+    -- Event Handling
+    self.eventFrame:SetScript("OnEvent", function(_, event, arg1, arg2)
+	print("DEBUG: "..event)
         if event == "CHAT_MSG_WHISPER" then
-            self:HandleWhisper(text, sender)
+            -- arg1 ist der Text, arg2 ist der Sender
+            self:HandleWhisper(arg1, arg2)
         elseif event == "GROUP_ROSTER_UPDATE" then
-            self:CheckGroupLevel()
+            -- Wir warten 2 Sekunden, da UnitLevel() oft Zeit braucht
+            if self.isRunning then
+                C_Timer.After(2, function() self:CheckGroupLevel() end)
+            end
         end
     end)
 end
@@ -301,7 +314,8 @@ function RaidOrganizer:BuildUI()
     self.btn:SetScript("OnClick", function() self:ToggleSearch() end)
 end
 
-local myRO = RaidOrganizer:New()
+-- local myRO = RaidOrganizer:New()
+myRO = RaidOrganizer:New()
 SLASH_RAIDORGANIZER1 = "/ro"
 SlashCmdList["RAIDORGANIZER"] = function()
     if myRO.frame:IsShown() then myRO.frame:Hide() else myRO.frame:Show() end
