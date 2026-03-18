@@ -138,11 +138,20 @@ function RaidOrganizer:PostLFM()
         return 
     end
 
+    -- Erster Teil: Was wird gesucht?
     local msg = self.adType .. " needs: "
     if t > 0 then msg = msg .. t .. " Tank " end
     if h > 0 then msg = msg .. h .. " Heal " end
     if d > 0 then msg = msg .. d .. " DPS " end
-    msg = msg .. "- Whisper 'inv T' for Tank, 'inv H' for Heal and 'inv D' for Damage."
+
+    -- Zweiter Teil: Dynamische Whisper-Instruktionen
+    local whisperParts = {}
+    if t > 0 then table.insert(whisperParts, "'inv T' for Tank") end
+    if h > 0 then table.insert(whisperParts, "'inv H' for Heal") end
+    if d > 0 then table.insert(whisperParts, "'inv D' for DPS") end
+
+    -- Zusammenfügen mit Bindestrich und Kommata
+    msg = msg .. "- Whisper " .. table.concat(whisperParts, ", ") .. "."
 
     for _, id in ipairs(self.activeChannels) do
         SendChatMessage(msg, "CHANNEL", nil, id)
@@ -151,9 +160,7 @@ end
 
 -- NEW: Level Check Logic
 function RaidOrganizer:CheckGroupLevel()
-    print("DEBUG: CheckGroupLevel wurde aufgerufen!")
     if not self.isRunning then 
-	print("DEBUG: Abgebrochen, da isRunning = false")
 	return 
     end
 
@@ -168,7 +175,6 @@ function RaidOrganizer:CheckGroupLevel()
         
         local name = UnitName(unit)
         local level = UnitLevel(unit)
-        print("DEBUG: "..name.."with level "..level)
 
         if name and name ~= UnitName("player") and level > 0 then
             local isInvalid = false
@@ -198,7 +204,6 @@ function RaidOrganizer:CheckGroupLevel()
                 SendChatMessage("RO: " .. reasonMsg, "WHISPER", nil, name)
                 self.recentWhispers[name .. "_lvlwarn"] = true
             end
-	    print("DEBUG: "..reasonMsg)
         end
     end
 end
@@ -257,7 +262,8 @@ end
 function RaidOrganizer:SetupEvents()
     self.eventFrame = CreateFrame("Frame")
     self.eventFrame:RegisterEvent("CHAT_MSG_WHISPER")
-    self.eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+    self.eventFrame:RegisterEvent("PARTY_MEMBERS_CHANGED")
+    self.eventFrame:RegisterEvent("RAID_ROSTER_UPDATE")
     
     -- Timer für Posts (alle 60 Sek)
     self.eventFrame:SetScript("OnUpdate", function(_, elapsed)
@@ -272,13 +278,14 @@ function RaidOrganizer:SetupEvents()
 
     -- Event Handling
     self.eventFrame:SetScript("OnEvent", function(_, event, arg1, arg2)
-	print("DEBUG: "..event)
+	print("-- DEBUG: "..event)
         if event == "CHAT_MSG_WHISPER" then
             -- arg1 ist der Text, arg2 ist der Sender
             self:HandleWhisper(arg1, arg2)
-        elseif event == "GROUP_ROSTER_UPDATE" then
+        elseif event == "PARTY_MEMBERS_CHANGED" then
             -- Wir warten 2 Sekunden, da UnitLevel() oft Zeit braucht
             if self.isRunning then
+	        print("-- DEBUG: CheckGroupLevel")
                 C_Timer.After(2, function() self:CheckGroupLevel() end)
             end
         end
